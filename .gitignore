@@ -1,0 +1,36 @@
+# Add node_modules
+node_modules/
+
+# Add terraform files
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform-outputs.json
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Keys (DO NOT COMMIT PRIVATE KEYS)
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# Ansible
+ansible/inventory.ini
+*.retry

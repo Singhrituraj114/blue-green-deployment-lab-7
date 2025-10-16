@@ -1,0 +1,70 @@
+---
+# Ansible Playbook to Configure EKS Cluster
+
+- name: Configure EKS Cluster
+  hosts: jenkins
+  become: yes
+  vars:
+    cluster_name: "blue-green-eks-cluster"
+    region: "us-east-1"
+    node_type: "t3.medium"
+    nodes: 2
+    nodes_min: 1
+    nodes_max: 3
+
+  tasks:
+    - name: Check if EKS cluster exists
+      command: aws eks describe-cluster --name {{ cluster_name }} --region {{ region }}
+      register: cluster_check
+      ignore_errors: yes
+      become_user: ec2-user
+
+    - name: Create EKS cluster using eksctl
+      shell: |
+        eksctl create cluster \
+          --name {{ cluster_name }} \
+          --region {{ region }} \
+          --nodegroup-name standard-workers \
+          --node-type {{ node_type }} \
+          --nodes {{ nodes }} \
+          --nodes-min {{ nodes_min }} \
+          --nodes-max {{ nodes_max }} \
+          --managed
+      when: cluster_check.rc != 0
+      become_user: ec2-user
+      async: 1800
+      poll: 30
+
+    - name: Update kubeconfig for ec2-user
+      command: aws eks update-kubeconfig --name {{ cluster_name }} --region {{ region }}
+      become_user: ec2-user
+
+    - name: Copy kubeconfig to Jenkins user
+      copy:
+        src: /home/ec2-user/.kube/config
+        dest: /var/lib/jenkins/.kube/config
+        owner: jenkins
+        group: jenkins
+        mode: '0600'
+        remote_src: yes
+
+    - name: Verify cluster access
+      command: kubectl get nodes
+      become_user: jenkins
+      register: nodes_output
+
+    - name: Display cluster nodes
+      debug:
+        msg: "{{ nodes_output.stdout }}"
+
+    - name: Create namespace for application
+      command: kubectl create namespace blue-green-app
+      become_user: jenkins
+      ignore_errors: yes
+
+    - name: Display success message
+      debug:
+        msg: |
+          EKS cluster configured successfully!
+          Cluster name: {{ cluster_name }}
+          Run 'kubectl get nodes' to verify cluster status

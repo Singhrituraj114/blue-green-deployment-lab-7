@@ -1,0 +1,247 @@
+---
+# Ansible Playbook for Jenkins Server Setup
+
+- name: Configure Jenkins Server with Docker, Maven, and Kubernetes Tools
+  hosts: jenkins
+  become: yes
+  vars:
+    jenkins_home: /var/lib/jenkins
+    docker_compose_version: "2.21.0"
+    kubectl_version: "1.28.0"
+    maven_version: "3.9.5"
+
+  tasks:
+    - name: Update system packages
+      yum:
+        name: '*'
+        state: latest
+        update_cache: yes
+
+    - name: Install required packages
+      yum:
+        name:
+          - git
+          - wget
+          - curl
+          - unzip
+          - java-11-openjdk
+          - java-11-openjdk-devel
+        state: present
+
+    - name: Set JAVA_HOME environment variable
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME=/usr/lib/jvm/java-11-openjdk'
+        create: yes
+
+    - name: Add Jenkins repository
+      get_url:
+        url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+
+    - name: Import Jenkins GPG key
+      rpm_key:
+        key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+        state: present
+
+    - name: Install Jenkins
+      yum:
+        name: jenkins
+        state: present
+
+    - name: Start and enable Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_password
+      ignore_errors: yes
+
+    - name: Display Jenkins initial password
+      debug:
+        msg: "Jenkins initial admin password: {{ jenkins_password.stdout }}"
+      when: jenkins_password.stdout is defined
+
+    # Install Docker
+    - name: Install Docker prerequisites
+      yum:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
+
+    - name: Add Docker repository
+      command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    - name: Install Docker
+      yum:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add jenkins user to docker group
+      user:
+        name: jenkins
+        groups: docker
+        append: yes
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    # Install Docker Compose
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    # Install Maven
+    - name: Download Maven
+      get_url:
+        url: "https://dlcdn.apache.org/maven/maven-3/{{ maven_version }}/binaries/apache-maven-{{ maven_version }}-bin.tar.gz"
+        dest: /tmp/apache-maven.tar.gz
+
+    - name: Extract Maven
+      unarchive:
+        src: /tmp/apache-maven.tar.gz
+        dest: /opt
+        remote_src: yes
+
+    - name: Create Maven symlink
+      file:
+        src: "/opt/apache-maven-{{ maven_version }}"
+        dest: /opt/maven
+        state: link
+
+    - name: Set Maven environment variables
+      blockinfile:
+        path: /etc/profile.d/maven.sh
+        create: yes
+        block: |
+          export MAVEN_HOME=/opt/maven
+          export PATH=$MAVEN_HOME/bin:$PATH
+
+    # Install kubectl
+    - name: Download kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+
+    - name: Verify kubectl installation
+      command: kubectl version --client
+      register: kubectl_version_output
+
+    - name: Display kubectl version
+      debug:
+        msg: "{{ kubectl_version_output.stdout }}"
+
+    # Install AWS CLI
+    - name: Download AWS CLI
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+
+    - name: Unzip AWS CLI
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install AWS CLI
+      command: /tmp/aws/install --update
+      args:
+        creates: /usr/local/bin/aws
+
+    # Install eksctl
+    - name: Download eksctl
+      get_url:
+        url: https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz
+        dest: /tmp/eksctl.tar.gz
+
+    - name: Extract eksctl
+      unarchive:
+        src: /tmp/eksctl.tar.gz
+        dest: /usr/local/bin
+        remote_src: yes
+
+    - name: Make eksctl executable
+      file:
+        path: /usr/local/bin/eksctl
+        mode: '0755'
+
+    # Configure kubectl for Jenkins user
+    - name: Create .kube directory for jenkins user
+      file:
+        path: "{{ jenkins_home }}/.kube"
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+
+    - name: Create .kube directory for ec2-user
+      file:
+        path: /home/ec2-user/.kube
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0755'
+
+    # Install Jenkins plugins (using CLI)
+    - name: Download Jenkins CLI
+      get_url:
+        url: http://localhost:8080/jnlpJars/jenkins-cli.jar
+        dest: /tmp/jenkins-cli.jar
+      retries: 5
+      delay: 10
+
+    - name: Create Jenkins plugins directory
+      file:
+        path: "{{ jenkins_home }}/plugins"
+        state: directory
+        owner: jenkins
+        group: jenkins
+
+    - name: Restart Jenkins to apply changes
+      systemd:
+        name: jenkins
+        state: restarted
+
+    - name: Wait for Jenkins to restart
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+
+    - name: Display success message
+      debug:
+        msg: |
+          Jenkins setup completed successfully!
+          Access Jenkins at: http://{{ ansible_host }}:8080
+          Initial admin password: {{ jenkins_password.stdout }}
+          
+          Next steps:
+          1. Configure EKS cluster using eksctl or Terraform
+          2. Copy kubeconfig to {{ jenkins_home }}/.kube/config
+          3. Configure Jenkins credentials for Docker Hub and GitHub

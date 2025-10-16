@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: blue-green-app
+  labels:
+    name: blue-green-app
+    environment: production
