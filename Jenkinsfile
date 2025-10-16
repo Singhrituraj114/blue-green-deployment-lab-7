@@ -69,8 +69,8 @@ pipeline {
                     # Update the deployment YAML with new image
                     sed -i 's|image: .*|image: ${FULL_IMAGE}|g' k8s/deployment-${DEPLOYMENT_COLOR}.yaml
                     
-                    # Update version
-                    sed -i 's|value: ".*"|value: "${IMAGE_TAG}"|g' k8s/deployment-${DEPLOYMENT_COLOR}.yaml
+                    # Update VERSION environment variable only (not PORT)
+                    sed -i '/name: VERSION/{n;s|value: ".*"|value: "${IMAGE_TAG}"|;}' k8s/deployment-${DEPLOYMENT_COLOR}.yaml
                 """
             }
         }
