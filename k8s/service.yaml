@@ -6,7 +6,7 @@ metadata:
   labels:
     app: myapp
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: myapp
     color: blue  # Initially points to blue deployment
@@ -14,5 +14,6 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: 3000
+    nodePort: 30080
     name: http
   sessionAffinity: ClientIP

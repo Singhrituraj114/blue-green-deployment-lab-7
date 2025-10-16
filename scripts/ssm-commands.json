@@ -1,0 +1,28 @@
+{
+  "commands": [
+    "sudo yum update -y",
+    "sudo yum install -y java-11-openjdk java-11-openjdk-devel",
+    "sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo",
+    "sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key",
+    "sudo yum install -y jenkins",
+    "sudo yum install -y docker git",
+    "sudo systemctl start jenkins",
+    "sudo systemctl enable jenkins",
+    "sudo systemctl start docker",
+    "sudo systemctl enable docker",
+    "sudo usermod -aG docker jenkins",
+    "sudo usermod -aG docker ec2-user",
+    "curl -LO https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl",
+    "sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl",
+    "rm -f kubectl",
+    "curl --silent --location https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz | tar xz -C /tmp",
+    "sudo mv /tmp/eksctl /usr/local/bin",
+    "sleep 60",
+    "echo '=========================================='",
+    "echo 'JENKINS INITIAL ADMIN PASSWORD:'",
+    "echo '=========================================='",
+    "sudo cat /var/lib/jenkins/secrets/initialAdminPassword",
+    "echo '=========================================='",
+    "echo 'Access Jenkins at: http://15.207.86.196:8080'"
+  ]
+}
