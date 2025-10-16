@@ -116,6 +116,20 @@ pipeline {
         stage('Switch Traffic') {
             steps {
                 script {
+                    // First, ensure the service exists
+                    echo "Ensuring service exists..."
+                    sh """
+                        # Create service if it doesn't exist
+                        if ! kubectl get service myapp-service -n ${K8S_NAMESPACE} &> /dev/null; then
+                            echo "Service doesn't exist. Creating service..."
+                            kubectl apply -f k8s/service.yaml
+                            echo "Waiting for LoadBalancer to be ready..."
+                            sleep 30
+                        else
+                            echo "Service already exists."
+                        fi
+                    """
+                    
                     def userInput = input(
                         id: 'SwitchTraffic',
                         message: "Switch traffic to ${DEPLOYMENT_COLOR} version?",
