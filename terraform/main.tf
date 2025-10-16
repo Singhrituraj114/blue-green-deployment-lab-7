@@ -170,21 +170,12 @@ resource "aws_iam_role_policy" "jenkins_eks_policy" {
       {
         Effect = "Allow"
         Action = [
-          "eks:DescribeCluster",
-          "eks:ListClusters",
-          "eks:DescribeNodegroup",
-          "eks:ListNodegroups"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:Describe*",
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
+          "eks:*",
+          "ec2:*",
+          "iam:*",
+          "cloudformation:*",
+          "autoscaling:*",
+          "ecr:*"
         ]
         Resource = "*"
       }
@@ -220,8 +211,50 @@ resource "aws_instance" "jenkins" {
 
   user_data = <<-EOF
               #!/bin/bash
+              # Update system
               yum update -y
               hostnamectl set-hostname jenkins-server
+              
+              # Install Java 11
+              yum install -y java-11-openjdk java-11-openjdk-devel
+              
+              # Install Jenkins
+              wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+              rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+              yum install -y jenkins
+              
+              # Install Docker
+              yum install -y docker git maven
+              
+              # Start services
+              systemctl start jenkins
+              systemctl enable jenkins
+              systemctl start docker
+              systemctl enable docker
+              
+              # Add users to docker group
+              usermod -aG docker jenkins
+              usermod -aG docker ec2-user
+              
+              # Install kubectl
+              curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+              install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+              rm -f kubectl
+              
+              # Install eksctl
+              curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" | tar xz -C /tmp
+              mv /tmp/eksctl /usr/local/bin
+              
+              # Install AWS CLI v2
+              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q awscliv2.zip
+              ./aws/install --update
+              rm -rf aws awscliv2.zip
+              
+              # Save Jenkins password to a readable location
+              sleep 60
+              cp /var/lib/jenkins/secrets/initialAdminPassword /home/ec2-user/jenkins-password.txt 2>/dev/null || true
+              chmod 644 /home/ec2-user/jenkins-password.txt 2>/dev/null || true
               EOF
 
   tags = {

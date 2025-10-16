@@ -3,7 +3,7 @@
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-south-1"
 }
 
 variable "project_name" {
@@ -27,13 +27,13 @@ variable "subnet_cidr" {
 variable "instance_type" {
   description = "EC2 instance type for Jenkins server"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "public_key_path" {
   description = "Path to SSH public key file"
   type        = string
-  default     = "~/.ssh/id_rsa.pub"
+  default     = "~/.ssh/jenkins_key.pub"
 }
 
 variable "create_eks_cluster" {
