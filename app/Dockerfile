@@ -13,6 +13,7 @@ RUN npm ci --only=production
 
 # Copy application files
 COPY server.js ./
+COPY public/ ./public/
 
 # Set environment variables
 ENV PORT=3000
